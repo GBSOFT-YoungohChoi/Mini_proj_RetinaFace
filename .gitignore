@@ -1,4 +1,7 @@
-data/
+data/widerface/
+data/widerface_official_site/
 wandb/
 model_training.ipynb
 train.sh
+weights/
+widerface_evaluate/widerface_txt/

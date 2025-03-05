@@ -11,7 +11,8 @@ import cv2
 from models.retinaface import RetinaFace
 from utils.box_utils import decode, decode_landm
 from utils.timer import Timer
-
+from dotenv import load_dotenv
+load_dotenv() 
 
 parser = argparse.ArgumentParser(description='Retinaface')
 parser.add_argument('-m', '--trained_model', default='./weights/Resnet50_Final.pth',
@@ -28,7 +29,24 @@ parser.add_argument('--keep_top_k', default=750, type=int, help='keep_top_k')
 parser.add_argument('-s', '--save_image', action="store_true", default=False, help='show detection results')
 parser.add_argument('--vis_thres', default=0.5, type=float, help='visualization_threshold')
 args = parser.parse_args()
+import wandb
 
+# WandB initialization
+wandb.init(
+    entity=os.environ.get("WANDB_ENTITY"),
+    project=os.environ.get("WANDB_INFERENCE_PROJECT"),
+    config={
+        "trained_model": args.trained_model,
+        "network": args.network,
+        "dataset_folder": args.dataset_folder,
+        "confidence_threshold": args.confidence_threshold,
+        "nms_threshold": args.nms_threshold,
+        "keep_top_k": args.keep_top_k,
+    }
+)
+
+# Check WandB config
+print(f"WandB setting: \n{wandb.config}")
 
 def check_keys(model, pretrained_state_dict):
     ckpt_keys = set(pretrained_state_dict.keys())
@@ -148,6 +166,9 @@ if __name__ == '__main__':
         boxes = boxes[inds]
         landms = landms[inds]
         scores = scores[inds]
+
+
+
 
         # keep top-K before NMS
         order = scores.argsort()[::-1]
