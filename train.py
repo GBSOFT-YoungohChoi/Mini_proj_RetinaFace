@@ -51,7 +51,7 @@ wandb.init(
 )
 
 # 설정된 WandB 값 출력
-print(f"🚀 WandB 설정 완료: \n{wandb.config}")
+print(f"WandB: \n{wandb.config}")
 
 # 이후 Train Loop에서 wandb.log()를 사용하여 실시간 로깅 가능
 
@@ -118,6 +118,7 @@ with torch.no_grad():
 
 def train():
     net.train()
+    start_time = time.time()
     epoch = 0 + args.resume_epoch
     print('Loading Dataset...')
 
@@ -135,6 +136,7 @@ def train():
         start_iter = 0
 
     for iteration in range(start_iter, max_iter):
+        epoch_start_time = time.time() # record epoch start time
         if iteration % epoch_size == 0:
             # create batch iterator
             batch_iterator = iter(data.DataLoader(dataset, batch_size, shuffle=True, num_workers=num_workers, collate_fn=detection_collate))
@@ -164,6 +166,10 @@ def train():
         load_t1 = time.time()
         batch_time = load_t1 - load_t0
         eta = int(batch_time * (max_iter - iteration))
+
+        epoch_end_time = time.time()  # record epoch end time
+        epoch_time = epoch_end_time - epoch_start_time  # calculate epoch time
+
         print('Epoch:{}/{} || Epochiter: {}/{} || Iter: {}/{} || Loc: {:.4f} Cla: {:.4f} Landm: {:.4f} || LR: {:.8f} || Batchtime: {:.4f} s || ETA: {}'
               .format(epoch, max_epoch, (iteration % epoch_size) + 1,
               epoch_size, iteration + 1, max_iter, loss_l.item(), loss_c.item(), loss_landm.item(), lr, batch_time, str(datetime.timedelta(seconds=eta))))
@@ -179,10 +185,13 @@ def train():
             "loss_classification": loss_c.item(), 
             "loss_landmark": loss_landm.item(), 
             "learning_rate": lr, 
-            "batch_time": batch_time, 
+            "batch_time": batch_time,
+            "epoch_time": epoch_time,
             "ETA_seconds": eta, 
         })
-    
+    total_train_time = time.time() - start_time
+    print(f"🚀 전체 학습 완료! 총 학습 시간: {str(datetime.timedelta(seconds=int(total_train_time)))}")
+    wandb.log({"total_train_time": total_train_time})
     torch.save(net.state_dict(), save_folder + cfg['name'] + '_Final.pth')
     # torch.save(net.state_dict(), save_folder + 'Final_Retinaface.pth')
 
