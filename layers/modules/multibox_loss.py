@@ -11,15 +11,29 @@ class MultiBoxLoss(nn.Module):
     Compute Targets:
         1) Produce Confidence Target Indices by matching  ground truth boxes
            with (default) 'priorboxes' that have jaccard index > threshold parameter
-           (default threshold: 0.5).
+           (default threshold: 0.5). 
+        # 두 박스의 교집합 영역/합집합 영역 == IoU와 같음 
+        # 박스의 교집합 영역이 0.5 이상인 경우에, priorboxes와 ground truth boxes를 매칭시킴
+           
         2) Produce localization target by 'encoding' variance into offsets of ground
-           truth boxes and their matched  'priorboxes'.
+           truth boxes and their matched  'priorboxes'. 
+        # localization target은 ground truth boxes와 priorboxes의 위치적인 오차(offset)를 계산함 -> 동일 오브젝트 안에서 오브젝트 처음부터 주어진 요소나 지점까지의 변위차를 나타내는 정수형
+        # 예를들면 'abcdef'를 포함하는 'A' 배열에서 시작지점에서 'c'까지의 거리는 2임 이를 offset이라고 함 
+        # RetinaFace나 SSD 모델에서는 Anchor Box와 실제 정답 사이의 offset 값에 variance라는 값을 적용하여 정규화합니다.
+        # variance를 쓰는것과 쓰지 않는것을 비교해봐야함 
+        # 이거는 검증해봐야할듯 
+        
+           
         3) Hard negative mining to filter the excessive number of negative examples
            that comes with using a large number of default bounding boxes.
            (default negative:positive ratio 3:1)
     Objective Loss:
         L(x,c,l,g) = (Lconf(x, c) + αLloc(x,l,g)) / N
         Where, Lconf is the CrossEntropy Loss and Lloc is the SmoothL1 Loss
+        # Loss_confidence 는 CrossEntropy Loss를 사용하고, Loss_location은 SmoothL1 Loss를 사용함
+        # SmoothL1 Loss는 MSELoss보다 이상치에 robust한 손실함수임
+        # 몇가지 케이스에서 exploding gradient 문제를 해결하기 위해 사용됨
+
         weighted by α which is set to 1 by cross val.
         Args:
             c: class confidences,
@@ -44,20 +58,26 @@ class MultiBoxLoss(nn.Module):
     def forward(self, predictions, priors, targets):
         """Multibox Loss
         Args:
-            predictions (tuple): A tuple containing loc preds, conf preds,
+            predictions (tuple): A tuple containing loc preds, conf preds,# loc preds는 위치 예측값, conf preds는 클래스 예측값
             and prior boxes from SSD net.
-                conf shape: torch.size(batch_size,num_priors,num_classes)
-                loc shape: torch.size(batch_size,num_priors,4)
-                priors shape: torch.size(num_priors,4)
+                conf shape: torch.size(batch_size,num_priors,num_classes) # conf_data.shape = torch.size([32, 16800, 2])
+                loc shape: torch.size(batch_size,num_priors,4) # loc_data.shape = torch.size([32, 16800, 4])
+                # loc_data는 32개의 이미지에 대한 16800개의 앵커박스의 x, y, w, h값을 가지고 있음
+                priors shape: torch.size(num_priors,4) # priors.shape = torch.size([16800, 4]) == anchor box, input resolution에 따라서 변화함
+                # 16800개의 앵커박스의 center point인 cx, cy 와 사이즈인 cw, ch값을 가지고 있음 
+                # PriorBox(앵커박스)가 3개의 레이어로 총 16800개의 구성되는 이유 : 12800 + 3200 + 800 = 16800개로 구성 
+                # P3 feature map에서 80 * 80 * 2 = 12800 // 한 셀당 생성하는 박스 개수 [16, 32] 2개
+                # P4 feature map에서 40 * 40 * 2 = 3200 // 한 셀당 생성하는 박스 개수 [64, 128] 2개
+                # P5 feature map에서 20 * 20 * 2 = 800 // 한 셀당 생성하는 박스 개수 [256, 512] 2개
 
             ground_truth (tensor): Ground truth boxes and labels for a batch,
                 shape: [batch_size,num_objs,5] (last idx is the label).
         """
 
-        loc_data, conf_data, landm_data = predictions
-        priors = priors
-        num = loc_data.size(0)
-        num_priors = (priors.size(0))
+        loc_data, conf_data, landm_data = predictions # loc_data = [32, 16800, 4], conf_data = [32, 16800, 2], landm_data = [32, 16800, 10]
+        priors = priors #priors = [16800, 4]  == anchor box, input resolution에 따라서 변화함
+        num = loc_data.size(0)  # num = 32
+        num_priors = (priors.size(0)) # num_priors = 16800
 
         # match priors (default boxes) and ground truth boxes
         loc_t = torch.Tensor(num, num_priors, 4)
