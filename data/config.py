@@ -8,11 +8,11 @@ cfg_mnet = {
     'clip': False,
     'loc_weight': 2.0,
     'gpu_train': True,
-    'batch_size': 64,
+    'batch_size': 32,
     'ngpu': 1,
-    'epoch': 250,
-    'decay1': 190,
-    'decay2': 220,
+    'epoch': 500,# 250 -> 500 변경
+    'decay1': 150, # 190 -> 150 변경
+    'decay2': 200, # 220 -> 200 변경 
     'image_size': 640,
     'pretrain': True,
     'return_layers': {'stage1': 1, 'stage2': 2, 'stage3': 3},

@@ -65,15 +65,15 @@ if args.network == "mobile0.25":
 elif args.network == "resnet50":
     cfg = cfg_re50
 
-rgb_mean = (104, 117, 123) # bgr order
-num_classes = 2
-img_dim = cfg['image_size']
-num_gpu = cfg['ngpu']
-batch_size = cfg['batch_size']
-max_epoch = cfg['epoch']
-gpu_train = cfg['gpu_train']
+rgb_mean = (104, 117, 123) # bgr order ImageNet mean
+num_classes = 2 # classification 0 or 1 (face or background)
+img_dim = cfg['image_size'] # 640 * 640 fixed size
+num_gpu = cfg['ngpu'] # number of GPU
+batch_size = cfg['batch_size']  # batch size
+max_epoch = cfg['epoch'] # max epoch 
+gpu_train = cfg['gpu_train'] #  use gpu to train
 
-num_workers = args.num_workers
+num_workers = args.num_workers 
 momentum = args.momentum
 weight_decay = args.weight_decay
 initial_lr = args.lr
@@ -85,6 +85,7 @@ net = RetinaFace(cfg=cfg)
 print("Printing net...")
 print(net)
 
+# Resnet50 backbone can be loaded
 if args.resume_net is not None:
     print('Loading resume network...')
     state_dict = torch.load(args.resume_net)
@@ -100,15 +101,17 @@ if args.resume_net is not None:
         new_state_dict[name] = v
     net.load_state_dict(new_state_dict)
 
-if num_gpu > 1 and gpu_train:
-    net = torch.nn.DataParallel(net).cuda()
+# Using dataparallel by multi gpus to train 
+if num_gpu > 1 and gpu_train: 
+    net = torch.nn.DataParallel(net).cuda() 
 else:
     net = net.cuda()
 
 cudnn.benchmark = True
 
-
-optimizer = optim.SGD(net.parameters(), lr=initial_lr, momentum=momentum, weight_decay=weight_decay)
+### Change the optimizer
+# optimizer = optim.SGD(net.parameters(), lr=initial_lr, momentum=momentum, weight_decay=weight_decay)
+optimizer = optim.AdamW(net.parameters(), lr=initial_lr, weight_decay=weight_decay)
 criterion = MultiBoxLoss(num_classes, 0.35, True, 0, True, 7, 0.35, False)
 
 priorbox = PriorBox(cfg, image_size=(img_dim, img_dim))
@@ -137,10 +140,10 @@ def train():
 
     for iteration in range(start_iter, max_iter):
         epoch_start_time = time.time() # record epoch start time
-        if iteration % epoch_size == 0:
+        if iteration % epoch_size == 0: 
             # create batch iterator
             batch_iterator = iter(data.DataLoader(dataset, batch_size, shuffle=True, num_workers=num_workers, collate_fn=detection_collate))
-            if (epoch % 10 == 0 and epoch > 0) or (epoch % 5 == 0 and epoch > cfg['decay1']):
+            if (epoch % 10 == 0 and epoch > 0) or (epoch % 2 == 0 and epoch > cfg['decay2']): # before:['decay1'] -> after: ['decay2']
                 torch.save(net.state_dict(), save_folder + cfg['name']+ '_epoch_' + str(epoch) + '.pth')
             epoch += 1
 
@@ -190,7 +193,7 @@ def train():
             "ETA_seconds": eta, 
         })
     total_train_time = time.time() - start_time
-    print(f"🚀 전체 학습 완료! 총 학습 시간: {str(datetime.timedelta(seconds=int(total_train_time)))}")
+    print(f" Total training time: {str(datetime.timedelta(seconds=int(total_train_time)))}")
     wandb.log({"total_train_time": total_train_time})
     torch.save(net.state_dict(), save_folder + cfg['name'] + '_Final.pth')
     # torch.save(net.state_dict(), save_folder + 'Final_Retinaface.pth')

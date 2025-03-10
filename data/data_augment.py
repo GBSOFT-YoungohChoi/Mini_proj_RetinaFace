@@ -206,14 +206,15 @@ def _resize_subtract_mean(image, insize, rgb_mean):
     return image.transpose(2, 0, 1)
 
 
-class preproc(object):
+class preproc(object): # (object): python2와 호환성을 고려한 표현, python3는 생략해도 자동으로 object상속함
 
     def __init__(self, img_dim, rgb_means):
         self.img_dim = img_dim
         self.rgb_means = rgb_means
 
     def __call__(self, image, targets):
-        assert targets.shape[0] > 0, "this image does not have gt"
+        assert targets.shape[0] > 0, "this image does not have gt" 
+        # targets.shape[0] > 0이 False이면 "this image does not have gt"라는 오류 메시지를 띄우고 코드 실행을 멈춥니다 -> gt값이 없는것은 들어가지 않게 바로 실행을 중단함 
 
         boxes = targets[:, :4].copy()
         labels = targets[:, -1].copy()
