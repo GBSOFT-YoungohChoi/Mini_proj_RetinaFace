@@ -9,6 +9,9 @@ def point_form(boxes):
         boxes: (tensor) center-size default boxes from priorbox layers.
     Return:
         boxes: (tensor) Converted xmin, ymin, xmax, ymax form of boxes.
+        
+    # 현재의 boxes는 중심좌표 기반으로 되어 있음 boxes = (cx, cy, w, h)
+    # 좌상단과 우하단 코너좌표로 변환하기 위해서는 cx 에서 w/2, cy에서 h/2를 빼고 더해주면 됨 
     """
     return torch.cat((boxes[:, :2] - boxes[:, 2:]/2,     # xmin, ymin
                      boxes[:, :2] + boxes[:, 2:]/2), 1)  # xmax, ymax
@@ -36,32 +39,62 @@ def intersect(box_a, box_b):
       box_b: (tensor) bounding boxes, Shape: [B,4].
     Return:
       (tensor) intersection area, Shape: [A,B].
+    # box_a = GT값
+    # box_a.shape = torch.Size([1, 4])
+    # box_b = 앵커박스 값
+    # box = [좌상단 x, 좌상단 y, 우하단 x, 우하단 y] 값으로 존재함 
+    # # (cx, cy, w, h)에서 좌상단 좌하단값으로 변화하는 함수인 point_form을 통해 변환됨
+    # box_b.shape = torch.Size([16800, 4])
     """
-    A = box_a.size(0)
-    B = box_b.size(0)
-    max_xy = torch.min(box_a[:, 2:].unsqueeze(1).expand(A, B, 2),
-                       box_b[:, 2:].unsqueeze(0).expand(A, B, 2))
+    A = box_a.size(0) # 박스 A의 개수 # GT에서 얼굴이 1개면 A = 1
+    B = box_b.size(0) # 박스 B의 개수 # 앵커박스의 개수 == 16800
+    max_xy = torch.min(box_a[:, 2:].unsqueeze(1).expand(A, B, 2), # box[:, 2:]는 박스의 우측하단 좌표 (x2, y2) 의미, unsqueeze를 통해 차원을 늘림 
+                       # box_a[:, 2:] = tensor([[0.4453, 0.2051]], device='cuda:0')
+                       # box_a[:, 2:].unsqueeze(1) = tensor([[[0.4453, 0.2051]]], device='cuda:0')
+                       # box_a[:, 2:].unsqueeze(1).expand(A, B, 2).shape = torch.Size([1, 16800, 2]) -> GT값의 우하단 좌표값을 3차원으로 변환함
+                       # unsqueeze(1)을 통해 차원을 늘림 뒤쪽에 차원을 늘려줌 [3]->[3, 1]
+                       # unsqueeze(0)을 통해 차원을 늘림 앞쪽에 차원을 늘려줌 [3]->[1, 3]
+                       box_b[:, 2:].unsqueeze(0).expand(A, B, 2)) # box_b[:, 2:].unsqueeze(0).expand(A, B, 2).shape = torch.Size([1, 16800, 2]) -> 앵커박스의 우하단 좌표값을 3차원으로 변환함
+                       # box_b[:, 2:] = tensor([[0.0188, 0.0188], [0.0312, 0.0312],[0.0312, 0.0188],...,[1.3250, 1.3750],[1.1750, 1.1750],[1.3750, 1.3750]], device='cuda:0')
+                       # box_b[:, 2:].shape = torch.Size([16800, 2])
+                       # box_b[:, 2:].unsqueeze(0).shape = torch.Size([1, 16800, 2])
+                       # box_b[:, 2:].unsqueeze(0).expand(A, B, 2).shape = torch.Size([1, 16800, 2])
+                       # 단순히 unqueeze(0)를 하게되면 A = 5개 일 때, GT박스와의 비교가 어려움움
+                        # expand(A, B, 2)를 통해 브로드캐스팅방식으로 차원을 늘림 
+                        # max 값들(우하단좌표) 중에서 가장 작은 값을 찾아야 박스가 겹치는 부분을 구할 수 있음 
     min_xy = torch.max(box_a[:, :2].unsqueeze(1).expand(A, B, 2),
-                       box_b[:, :2].unsqueeze(0).expand(A, B, 2))
-    inter = torch.clamp((max_xy - min_xy), min=0)
-    return inter[:, :, 0] * inter[:, :, 1]
+                       box_b[:, :2].unsqueeze(0).expand(A, B, 2))  #겹치는 부분을 찾기위해 min중에 최대값을 찾고, max중에 최소값을 찾아야하므로 
+                    # 구하는 방식은 max_xy와 같음
+                    # min 값들(좌상단 좌표) 중에서 가장 큰 값을 찾아야 박스가 겹치는 부분을 구할 수 있음
+    inter = torch.clamp((max_xy - min_xy), min=0) # GT박스와 앵커박스의 교집합 박스의 너비와 높이를 계산하고, 교집합이 없을 경우 음수가 되지 않도록 min=0으로 설정함 
+    # inter.shape  = torch.Size([1, 16800, 2])
+    return inter[:, :, 0] * inter[:, :, 1] # GT박스와 앵커박스의 교집합 박스의 너비와 높이로 면적을 구함 
 
 
 def jaccard(box_a, box_b):
     """Compute the jaccard overlap of two sets of boxes.  The jaccard overlap
     is simply the intersection over union of two boxes.  Here we operate on
-    ground truth boxes and default boxes.
+    ground truth boxes and default boxes. 
+    # IoU와 똑같다는 얘기 
     E.g.:
         A ∩ B / A ∪ B = A ∩ B / (area(A) + area(B) - A ∩ B)
     Args:
-        box_a: (tensor) Ground truth bounding boxes, Shape: [num_objects,4]
-        box_b: (tensor) Prior boxes from priorbox layers, Shape: [num_priors,4]
+        box_a: (tensor) Ground truth bounding boxes, Shape: [num_objects,4] # 얼굴의 GT값 [얼굴개수,bounding boxes gt값 4개]
+        box_b: (tensor) Prior boxes from priorbox layers, Shape: [num_priors,4] # 얼굴의 예측 앵커박스 값 
     Return:
         jaccard overlap: (tensor) Shape: [box_a.size(0), box_b.size(0)]
+
+    # box_a = GT값
+    # box_a.shape = torch.Size([1, 4])
+    # box_b = 앵커박스 값
+    # box = [좌상단 x, 좌상단 y, 우하단 x, 우하단 y] 값으로 존재함 
     """
-    inter = intersect(box_a, box_b)
+    inter = intersect(box_a, box_b) 
+    # intersect 함수의 return값은 "inter[:, :, 0] * inter[:, :, 1]"값으로, GT박스와 앵커박스의 교집합 박스의 너비와 높이로 면적을 구함 
     area_a = ((box_a[:, 2]-box_a[:, 0]) *
               (box_a[:, 3]-box_a[:, 1])).unsqueeze(1).expand_as(inter)  # [A,B]
+    # box_a
+    # area_a.shape = (18,)
     area_b = ((box_b[:, 2]-box_b[:, 0]) *
               (box_b[:, 3]-box_b[:, 1])).unsqueeze(0).expand_as(inter)  # [A,B]
     union = area_a + area_b - inter
@@ -84,12 +117,35 @@ def matrix_iou(a, b):
 def matrix_iof(a, b):
     """
     return iof of a and b, numpy version for data augenmentation
-    """
-    lt = np.maximum(a[:, np.newaxis, :2], b[:, :2])
-    rb = np.minimum(a[:, np.newaxis, 2:], b[:, 2:])
+    # 데이터 증강을 위한 numpy 버전의 iof를 반환함
+    IOF: A∩𝐵/area(A)​
+  → GT 박스(또는 특정 박스)의 영역을 기준으로 IoU 계산
 
-    area_i = np.prod(rb - lt, axis=2) * (lt < rb).all(axis=2)
+    a = boxes = [x_min, y_min, x_max, y_max]
+    b = crop ROI (multi scale로 원본이미지를 자를 범위에 대한 x1, y1, x2, y2)
+    """
+    lt = np.maximum(a[:, np.newaxis, :2], b[:, :2]) # 좌상단 좌표 비교 (left top)
+    # a[0] = array([158.,  70., 332., 300.])
+    # a.shape = (2, 4) -> GT에 따라서 계속 바뀜 
+    # b = array([[196,   0, 967, 771]])
+    # b.shape = (1, 4)
+    # a[:, np.newaxis, :2]로 np.newaxis를 하게되면 브로드캐스팅으로 인해 shape이 (2, 1, 4)가 되어, b의 shape인 (1, 4)와 겹치는 부분을 계산할 수 있게 됨 
+    # np.newaxis를 하지 않으면 계산불가
+    # lt.shape = (얼굴개수 , 1, 2)
+    # 겹치는 부분을 구하기 위해 좌상단 좌표를 비교함 x_min, y_min중에서 maximum값을 쓰면 겹치는 부분을 구할 수 있음
+    rb = np.minimum(a[:, np.newaxis, 2:], b[:, 2:]) # 우하단 좌표 비교(right bottom)
+    # rb.shape = (18, 1, 2)
+    # 교집합 영역 계산
+    # a[:, np.newaxis, 2:] = array([[[x_min, y_min]], [[x_min, y_min]]])
+    # 겹치는 부분을 구하기 위해 좌상단 좌표를 비교함 x_max, y_max중에서 maximum값을 쓰면 겹치는 부분을 구할 수 있음
+    area_i = np.prod(rb - lt, axis=2) * (lt < rb).all(axis=2) # prod = production 임 --> 가로 길이 * 세로길이 = 박스면적(교집합 영역) 
+    # a 박스의 영역 (고정된 기준 박스)
+    # (lt < rb).all(axis=2) -> 교집합이 존재하는 경우만 남김, 겹치는 부분이 없으면 0
     area_a = np.prod(a[:, 2:] - a[:, :2], axis=1)
+    # a[:, 2:] = [x_max, y_max] = boxes의 우하단
+    # a[:, :2] = [x_min, y_min] = boxes의 좌상단을 의미하므로 
+    # np.prod를 통해 w, h값을 서로 곱해주어 겹치는 면적을 구함
+    # IOF 계산 (교집합 / a 박스의 면적)
     return area_i / np.maximum(area_a[:, np.newaxis], 1)
 
 
@@ -97,26 +153,33 @@ def match(threshold, truths, priors, variances, labels, landms, loc_t, conf_t, l
     """Match each prior box with the ground truth box of the highest jaccard
     overlap, encode the bounding boxes, then return the matched indices
     corresponding to both confidence and location preds.
+    # jaccard overlap(IoU =(A ∩ B) / (A ∪ B))이 가장 높은 ground truth box와 각 prior box를 일치시키고, bounding box를 인코딩한 다음 일치하는 인덱스를 반환하십시오
     Args:
-        threshold: (float) The overlap threshold used when mathing boxes.
-        truths: (tensor) Ground truth boxes, Shape: [num_obj, 4].
-        priors: (tensor) Prior boxes from priorbox layers, Shape: [n_priors,4].
-        variances: (tensor) Variances corresponding to each prior coord,
+        threshold: (float) The overlap threshold used when mathing boxes. # IoU 임계값
+        truths: (tensor) Ground truth boxes, Shape: [num_obj, 4]. # x1, y1, w, h에 대한 GT값 -> 실제 얼굴 위치 정보 
+        priors: (tensor) Prior boxes from priorbox layers, Shape: [n_priors,4]. # 앵커박스의 cx, cy, w, h값
+        variances: (tensor) Variances corresponding to each prior coord, # 정답박스와 예측된 앵커박스간의 위치차이를 나타내는 offset을 정규화할 때 사용하는 값
             Shape: [num_priors, 4].
-        labels: (tensor) All the class labels for the image, Shape: [num_obj].
-        landms: (tensor) Ground truth landms, Shape [num_obj, 10].
-        loc_t: (tensor) Tensor to be filled w/ endcoded location targets.
-        conf_t: (tensor) Tensor to be filled w/ matched indices for conf preds.
-        landm_t: (tensor) Tensor to be filled w/ endcoded landm targets.
-        idx: (int) current batch index
+        labels: (tensor) All the class labels for the image, Shape: [num_obj]. # 각 얼굴에 대한 클래스 레이블, 얼굴 = 1, 배경 = 0
+        landms: (tensor) Ground truth landms, Shape [num_obj, 10]. # 랜드마크 GT값, 왼쪽 눈, 오른쪽 눈, 코, 왼쪽 입 끝 위치, 오른쪽 입 끝 위치
+        loc_t: (tensor) Tensor to be filled w/ endcoded location targets. # localization target == 정답역할을 할 텐서 
+        conf_t: (tensor) Tensor to be filled w/ matched indices for conf preds. # confidence target == 클래스 예측값을 저장할 텐서
+        landm_t: (tensor) Tensor to be filled w/ endcoded landm targets. # landm target == 랜드마크 예측값을 저장할 텐서
+        idx: (int) current batch index # 현재 배치 인덱스
     Return:
-        The matched indices corresponding to 1)location 2)confidence 3)landm preds.
+        The matched indices corresponding to 1)location 2)confidence 3)landm preds. # 위치, confidence, 랜드마크
     """
     # jaccard index
     overlaps = jaccard(
         truths,
         point_form(priors)
     )
+    # overlaps = [2, 16800]
+    # truths = tensor([[0.0000, 0.1768, 0.2478, 0.7868],[0.4835, 0.1837, 0.9099, 0.7730]], device='cuda:0')
+    # truths.shape = torch.Size([2, 4])
+    # point_form(priors) =  torch.Size([16800, 4]) 
+    # point_form 함수 -> 앵커박스의 센터값이 중심이었던 값을 (xmin, ymin, xmax, ymax)로 변환함
+    # 두 박스의 IoU값을 계산함 
     # (Bipartite Matching)
     # [1,num_objects] best prior for each ground truth
     best_prior_overlap, best_prior_idx = overlaps.max(1, keepdim=True)
@@ -158,23 +221,49 @@ def encode(matched, priors, variances):
     we have matched (based on jaccard overlap) with the prior boxes.
     Args:
         matched: (tensor) Coords of ground truth for each prior in point-form
-            Shape: [num_priors, 4].
+            Shape: [num_priors, 4]. 
+            # [GT 개수, 좌상단 x, 좌상단 y, 우하단 x, 우하단 y]
         priors: (tensor) Prior boxes in center-offset form
             Shape: [num_priors,4].
+            # [앵커박스 개수, cx, cy, w, h]
         variances: (list[float]) Variances of priorboxes
+        # variances = [0.1, 0.2]
     Return:
         encoded boxes (tensor), Shape: [num_priors, 4]
     """
 
     # dist b/t match center and prior's center
     g_cxcy = (matched[:, :2] + matched[:, 2:])/2 - priors[:, :2]
+    # matched.shape = torch.Size([16800, 5, 2])
+    # matched는 GT박스의 좌상단, 우하단 좌표값을 가지고 있음
+    # matched[:, :2].shape = torch.Size([16800, 2, 2])
+    # matched 의 의미 -> 16800개의 앵커박스 각각이 5개의 GT박스를 저장하도록 설계함 -> 여러 얼굴을 감지하는 성능이 향상됨 
+    # matched[prior_idx][gt_idx] = [x_min, y_min]
+    # priors[:, :2].shape = torch.Size([16800, 2, 4])
+    # g_cxcy 는 GT박스의 센터좌표를 나타냄
+    
     # encode variance
     g_cxcy /= (variances[0] * priors[:, 2:])
+    # priors[:, 2:].shape = torch.Size([16800, 3, 4])
+    # variances[0] = 0.1
+    
     # match wh / prior wh
-    g_wh = (matched[:, 2:] - matched[:, :2]) / priors[:, 2:]
+    # matched.shape  = torch.Size([16800, 4])
+    g_wh = (matched[:, 2:] - matched[:, :2]) / priors[:, 2:] # matched = 우하단에서 좌상단값을 빼주어 GT값의 w, h값을 구해줌
+    # matched[:, 2:] = GT값의 x_max, y_max 우하단 위치 값
+    # matched[:, :2] = GT값의 x_min, y_min 좌상단 위치 값
+    # (matched[:, 2:] - matched[:, :2]) = GT값의 w, h값
+    # priors[:, 2:] = 앵커박스의 w, h값
+    # g_wh = 각각의 GT박스의 크기가 앵커박스의 크기대비 얼마나 큰지를 나타내는 비율 값 
+    # 또한 앵커박스의 크기가 고정된 크기로 정의되므로, GT박스의 크기를 앵커박스의 크기로 정규화하여 학습을 안정화시킬 수 있음
+    
+    # 이후 prior의 w, h값으로 나눠주어, priors의 
     g_wh = torch.log(g_wh) / variances[1]
     # return target for smooth_l1_loss
-    return torch.cat([g_cxcy, g_wh], 1)  # [num_priors,4]
+    return torch.cat([g_cxcy, g_wh], 1)  # 두 텐서를 concat해줌
+    # g_cxcy.shape = torch.Size([16800, 2])
+    # g_wh.shape = torch.Size([16800, 2])
+    # torch.cat([g_cxcy, g_wh], 1) = torch.Size([16800, 4])
 
 def encode_landm(matched, priors, variances):
     """Encode the variances from the priorbox layers into the ground truth boxes

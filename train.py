@@ -15,6 +15,7 @@ from models.retinaface import RetinaFace
 import wandb
 import random
 from dotenv import load_dotenv
+from torch.optim.lr_scheduler import _LRScheduler
 # dotenv
 load_dotenv() 
 
@@ -107,12 +108,23 @@ if num_gpu > 1 and gpu_train:
 else:
     net = net.cuda()
 
-cudnn.benchmark = True
+cudnn.benchmark = True # 입력크기가 일정할 때, 속도 최적화 
 
 ### Change the optimizer
 # optimizer = optim.SGD(net.parameters(), lr=initial_lr, momentum=momentum, weight_decay=weight_decay)
 optimizer = optim.AdamW(net.parameters(), lr=initial_lr, weight_decay=weight_decay)
 criterion = MultiBoxLoss(num_classes, 0.35, True, 0, True, 7, 0.35, False)
+# num_classes, overlap_thresh, prior_for_matching, bkg_label, neg_mining, neg_pos, neg_overlap, encode_target)
+# self.num_classes = num_classes
+# self.threshold = overlap_thresh
+# self.background_label = bkg_label
+# self.encode_target = encode_target
+# self.use_prior_for_matching = prior_for_matching
+# self.do_neg_mining = neg_mining
+# self.negpos_ratio = neg_pos
+# self.neg_overlap = neg_overlap
+# self.variance = [0.1, 0.2]
+
 
 priorbox = PriorBox(cfg, image_size=(img_dim, img_dim))
 with torch.no_grad():
@@ -148,22 +160,29 @@ def train():
             epoch += 1
 
         load_t0 = time.time()
-        if iteration in stepvalues:
+        if iteration in stepvalues:# 학습률을 감소시키는 부분
+            # stepvalues = (60450, 80600)
+            # 60450 일 떄 lr을 0.0001로 0.1배 낮추고, 80600일때 lr을 0.00001로 0.1배 한번 더 낮춰서 활용함 
             step_index += 1
         lr = adjust_learning_rate(optimizer, gamma, epoch, step_index, iteration, epoch_size)
-
+        # lr 150 epoch에서 0.1배, 200epoch에서 0.1배 총 2번의 lr을 조정하게 됨 
         # load train data
         images, targets = next(batch_iterator)
         images = images.cuda()
         targets = [anno.cuda() for anno in targets]
 
         # forward
-        out = net(images)
+        out = net(images) # net = RetinaFace((body)... model structure))
 
         # backprop
-        optimizer.zero_grad()
+        optimizer.zero_grad() # loss.backward()를 통해 역전파를 수행하게되고고, zero_grad()를 하지 않으면 기존에 저장되어 있었던 값에 영향을 미침
+        # 모델안에 여러개의 옵티마이저를 사용하고 있다면 model.zero_grad()를, 하나의 옵티마이저를 사용하고 있다면 optimizer.zero_grad()를 활용하면 됨
         loss_l, loss_c, loss_landm = criterion(out, priors, targets)
-        loss = cfg['loc_weight'] * loss_l + loss_c + loss_landm
+        # criterion = MultiBoxLoss()
+        # loss_l = loss_localization = tensor(1.4856, device='cuda:0', grad_fn=<DivBackward0>)
+        # loss_c = loss_confidence = tensor(1.8708, device='cuda:0', grad_fn=<DivBackward0>)
+        # loss_landm = los_landmark = tensor(3.9233, device='cuda:0', grad_fn=<DivBackward0>)
+        loss = cfg['loc_weight'] * loss_l + loss_c + loss_landm # loc_weight = 2.0 으로 설정되어있음 (논문에서는 0.25, 0.1, 0.01로 설정되어 있음 로 주었었음)
         loss.backward()
         optimizer.step()
         load_t1 = time.time()
