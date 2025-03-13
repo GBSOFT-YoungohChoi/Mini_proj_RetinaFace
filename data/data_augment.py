@@ -113,13 +113,16 @@ def _crop(image, boxes, labels, landm, img_dim):
         # boxes_t[:, 0] + 1 = array([498., 561.,  52., 345.])
         # w = width
         # img_dim = 640
-        # x_max - x_min만 사용한 경우 -> width = 10 - 5 = 5  (실제 너비보다 1픽셀셀 작음)
+
+        # x_max - x_min만 사용한 경우 -> width = 10 - 5 = 5  (실제 너비보다 1픽셀 작음)
         # b_w_t = array([14.99267936, 15.92972182, 14.99267936, 35.60761347])
+
         # b_w_t.shape = (4,)
         b_h_t = (boxes_t[:, 3] - boxes_t[:, 1] + 1) / h * img_dim
         # boxes_t = array([[  0., 319.,  93., 460.], [129., 288., 143., 302.]]) 일때
         # boxes_t[:, 3] = array([460., 302.])
         # boxes_t[:, 1] = array([319., 288.])
+
         # b_h_t = 바운딩 박스의 높이 정규화 및 훈련 이미지 크기에 맞게 변환하는 과정 
         # boxes_t[:, 3] - boxes_t[:, 1] 값이 y_max - y_min이고 Bbox의 높이가 됨
         # y_max - y_min 를 수행하게 되면 출력값이 실제값보다 1픽셀 작은 값이 도출되어 "+1"을 해줌 
@@ -283,8 +286,10 @@ def _pad_to_square(image, rgb_mean, pad_image_flag):
     # np.empty(shape, dtype) -> np.zeros()와 다르게, 초기화 되지 않는 배열을 생성하는 Numpy 함수
     # 배열의 값을 0으로 초기화 하지 않고 메모리 ㅏㅇ의 기존 데이터를 유지함
     # (long_side, long_side, 3) -> long_side 크기의 정사각형 이미지, 3채널 (RGB)
+    
     # 빈 image_t를 생성함 
     # e.g., 크기가 큰쪽으로 사이즈를 맞춰서 배열을 만듦
+
     image_t[:, :] = rgb_mean
     # 전체 배경을 rgb_mean값으로 채움
     image_t[0:0 + height, 0:0 + width] = image
