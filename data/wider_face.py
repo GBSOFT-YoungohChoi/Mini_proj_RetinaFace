@@ -74,8 +74,10 @@ class WiderFaceDetection(data.Dataset):
         target = np.array(annotations) # target = annotations array로 변환
         if self.preproc is not None:
             img, target = self.preproc(img, target)
-
+        
         return torch.from_numpy(img), target
+        # img.shape = (3, 640, 640)
+        # target.shape = (1, 15)
 
 def detection_collate(batch):
     """Custom collate fn for dealing with batches of images that have a different

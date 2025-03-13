@@ -126,9 +126,9 @@ criterion = MultiBoxLoss(num_classes, 0.35, True, 0, True, 7, 0.35, False)
 # self.variance = [0.1, 0.2]
 
 
-priorbox = PriorBox(cfg, image_size=(img_dim, img_dim))
+priorbox = PriorBox(cfg, image_size=(img_dim, img_dim)) 
 with torch.no_grad():
-    priors = priorbox.forward()
+    priors = priorbox.forward() # (16800, 4) 로 결과가 나옴
     priors = priors.cuda()
 
 def train():
@@ -137,7 +137,7 @@ def train():
     epoch = 0 + args.resume_epoch
     print('Loading Dataset...')
 
-    dataset = WiderFaceDetection( training_dataset,preproc(img_dim, rgb_mean))
+    dataset = WiderFaceDetection( training_dataset,preproc(img_dim, rgb_mean)) # 이미지와 레이블 전처리 
 
     epoch_size = math.ceil(len(dataset) / batch_size)
     max_iter = max_epoch * epoch_size
