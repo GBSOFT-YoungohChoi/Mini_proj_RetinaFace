@@ -125,9 +125,8 @@ criterion = MultiBoxLoss(num_classes, 0.35, True, 0, True, 7, 0.35, False)
 # self.neg_overlap = neg_overlap
 # self.variance = [0.1, 0.2]
 
-
-
 priorbox = PriorBox(cfg, image_size=(img_dim, img_dim))
+
 with torch.no_grad():
     priors = priorbox.forward() # (16800, 4) 로 결과가 나옴
     priors = priors.cuda()

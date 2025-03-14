@@ -156,6 +156,7 @@ def _distort(image): # 밝기, 대비, 채도, 색조를 랜덤하게 왜곡하�
         tmp[tmp > 255] = 255 # 이미지 픽셀값이 255보다 커지는 상황을 제한함
         image[:] = tmp 
 
+
     image = image.copy() # 원본이미지 놔두고고
 
     if random.randrange(2):
@@ -286,10 +287,9 @@ def _pad_to_square(image, rgb_mean, pad_image_flag):
     # np.empty(shape, dtype) -> np.zeros()와 다르게, 초기화 되지 않는 배열을 생성하는 Numpy 함수
     # 배열의 값을 0으로 초기화 하지 않고 메모리 ㅏㅇ의 기존 데이터를 유지함
     # (long_side, long_side, 3) -> long_side 크기의 정사각형 이미지, 3채널 (RGB)
-    
+
     # 빈 image_t를 생성함 
     # e.g., 크기가 큰쪽으로 사이즈를 맞춰서 배열을 만듦
-
     image_t[:, :] = rgb_mean
     # 전체 배경을 rgb_mean값으로 채움
     image_t[0:0 + height, 0:0 + width] = image

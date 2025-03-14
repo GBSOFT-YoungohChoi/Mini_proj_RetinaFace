@@ -298,19 +298,30 @@ def encode_landm(matched, priors, variances):
 def decode(loc, priors, variances):
     """Decode locations from predictions using priors to undo
     the encoding we did for offset regression at train time.
+    # 학습 시 수행한 offset regression을 원래 좌표로 변환하는 함수
+    # 즉, 모델이 예측한 위치(loc)를 실제 이미지 좌표로 디코딩하는 과정
     Args:
         loc (tensor): location predictions for loc layers,
-            Shape: [num_priors,4]
-        priors (tensor): Prior boxes in center-offset form.
-            Shape: [num_priors,4].
+        # 모델이 예측한 박스 오프셋 (offset regression 결과).
+            Shape: [num_priors,4](x_offset, y_offset, w_offset, h_offset)
+        priors (tensor): Prior boxes in center-offset form. # 미리 정의된 anchor box (Prior Boxes)
+            Shape: [num_priors,4].(x_center, y_center, width, height)
         variances: (list[float]) Variances of priorboxes
+        # Prior boxes에서 사용한 변동성 값 (scale factor)
+        # variances = [0.1, 0.2]
     Return:
         decoded bounding box predictions
+        디코딩된 바운딩 박스 좌표 (x_min, y_min, x_max, y_max)
     """
 
     boxes = torch.cat((
         priors[:, :2] + loc[:, :2] * variances[0] * priors[:, 2:],
         priors[:, 2:] * torch.exp(loc[:, 2:] * variances[1])), 1)
+    # priors[:, :2].shape = torch.Size([23936, 2]) # 기준이 되는 anchor box의 중심 좌표 (x_center, y_center)  (shape: [num_priors, 2])
+    # loc[:, :2].shape = torch.Size([23936, 2]) # 모델이 예측한 x, y 중심 좌표의 오프셋 (shape: [num_priors, 2])
+    # priors[:, 2:]: anchor box의 width, height (shape: [num_priors, 2])
+    # variances = [0.1, 0.2]  scale factor
+    # priors.shape = torch.Size([23936, 4])
     boxes[:, :2] -= boxes[:, 2:] / 2
     boxes[:, 2:] += boxes[:, :2]
     return boxes
