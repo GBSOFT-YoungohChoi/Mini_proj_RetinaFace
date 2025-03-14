@@ -89,12 +89,14 @@ if __name__ == '__main__':
     net = net.to(device)
 
     # testing dataset
+
     testset_folder = args.dataset_folder # 테스트 데이터셋 폴더 경로 설정 #'./data/widerface/val/images/'
     testset_list = args.dataset_folder[:-7] + "wider_val.txt" # './data/widerface/val/wider_val.txt'
 
     with open(testset_list, 'r') as fr:
         test_dataset = fr.read().split() # 파일을 읽고 개별 이미지 경로를 리스트로 저장
     num_images = len(test_dataset) # 테스트 데이터 개수 3226 # 테스트할 총 이미지 개수 저장
+
 
     _t = {'forward_pass': Timer(), 'misc': Timer()} # 추론 시간 측정을 위한 타이머 객체 생성
 

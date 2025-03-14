@@ -1,1 +1,1 @@
-python test_widerface.py --trained_model /home/youngoh/retinaface/Pytorch_Retinaface/weights/mobilenet0.25_Final.pth --network mobile0.25 --save_image
+python test_widerface.py --trained_model /home/youngoh/retinaface/Pytorch_Retinaface/weights/Adam_epoch500/mobilenet0.25_epoch_300.pth --network mobile0.25 --save_image

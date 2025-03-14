@@ -127,7 +127,6 @@ def _crop(image, boxes, labels, landm, img_dim):
         # boxes_t[:, 3] - boxes_t[:, 1] 값이 y_max - y_min이고 Bbox의 높이가 됨
         # y_max - y_min 를 수행하게 되면 출력값이 실제값보다 1픽셀 작은 값이 도출되어 "+1"을 해줌 
         # h 인 크롭된 이미지 높이로 정규화해주고, 이를 학습 이미지 크기에 맞춰서 변환해줌 -> 결국 학습이미지로 변환하는 과정임
-
         mask_b = np.minimum(b_w_t, b_h_t) > 0.0
         # 결국 b_w_t, b_h_t는 학습이미지 크기 640에 맞춘 bbox의 너비와 높이임, 크롭된 이미지를 기준으로 정규화된 값임  
         # b_w_t와 b_h_t중에서 더 작은값(0보다 큰값)을 선택함
@@ -288,6 +287,7 @@ def _pad_to_square(image, rgb_mean, pad_image_flag):
     # np.empty(shape, dtype) -> np.zeros()와 다르게, 초기화 되지 않는 배열을 생성하는 Numpy 함수
     # 배열의 값을 0으로 초기화 하지 않고 메모리 ㅏㅇ의 기존 데이터를 유지함
     # (long_side, long_side, 3) -> long_side 크기의 정사각형 이미지, 3채널 (RGB)
+
     # 빈 image_t를 생성함 
     # e.g., 크기가 큰쪽으로 사이즈를 맞춰서 배열을 만듦
     image_t[:, :] = rgb_mean
