@@ -12,6 +12,7 @@ from models.retinaface import RetinaFace
 from utils.box_utils import decode, decode_landm # 바운딩 박스 및 랜드마크 디코딩 함수
 from utils.timer import Timer
 from dotenv import load_dotenv
+import time
 load_dotenv() 
 
 parser = argparse.ArgumentParser(description='Retinaface')
@@ -79,11 +80,14 @@ if __name__ == '__main__':
     elif args.network == "resnet50":
         cfg = cfg_re50
     # net and model
+    model_load_start = time.time()
     net = RetinaFace(cfg=cfg, phase = 'test')
     net = load_model(net, args.trained_model, args.cpu) # 모델 로드
     net.eval()
+    model_load_end = time.time()
     print('Finished loading model!')
     print(net)
+
     cudnn.benchmark = True
     device = torch.device("cpu" if args.cpu else "cuda")
     net = net.to(device)
@@ -99,7 +103,7 @@ if __name__ == '__main__':
 
 
     _t = {'forward_pass': Timer(), 'misc': Timer()} # 추론 시간 측정을 위한 타이머 객체 생성
-
+    total_prediction_start = time.time()
     # testing begin
     for i, img_name in enumerate(test_dataset): # 테스트 데이터셋을 하나씩 불러옴
         image_path = testset_folder + img_name # 개별 이미지 파일 경로 생성
@@ -274,3 +278,7 @@ if __name__ == '__main__':
             name = "./results/default/" + str(i) + ".jpg"
             cv2.imwrite(name, img_raw)
 
+    total_prediction_end = time.time()
+    print(f"Model loading time: {model_load_end - model_load_start:.4f} seconds")
+    print(f"Total inference time for {num_images} images: {total_prediction_end - total_prediction_start:.4f} seconds")
+    print(f"Average inference time per image: {(total_prediction_end - total_prediction_start) / num_images:.4f} seconds")

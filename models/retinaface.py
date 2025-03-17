@@ -19,8 +19,11 @@ class ClassHead(nn.Module):
 
     def forward(self,x):
         out = self.conv1x1(x)
+        #self = ClassHead(  (conv1x1): Conv2d(64, 4, kernel_size=(1, 1), stride=(1, 1))
+        # x.shape = torch.Size([32, 64, 80, 80])
+        # out.shape = torch.Size([32, 4, 80, 80]) 
         out = out.permute(0,2,3,1).contiguous()
-        
+        # out.shape = torch.Size([32, 80, 80, 4]) 
         return out.view(out.shape[0], -1, 2)
 
 class BboxHead(nn.Module):
@@ -30,9 +33,15 @@ class BboxHead(nn.Module):
 
     def forward(self,x):
         out = self.conv1x1(x)
+        # self = BboxHead(  (conv1x1): Conv2d(64, 8, kernel_size=(1, 1), stride=(1, 1))
+        # x.shape = torch.Size([32, 64, 80, 80])
+        # x가 들어왔을 때, conv1x1을통해 각 채널의 값들이 결합 및 압축됨 
+        # out.shape = torch.Size([32, 8, 80, 80])
         out = out.permute(0,2,3,1).contiguous()
+        # out.shape = torch.Size([32, 80, 80, 8])
 
-        return out.view(out.shape[0], -1, 4)
+        return out.view(out.shape[0], -1, 4)        # regression하기 위해서 마지막 값을 4로 두고 나머지를 -1로 배치
+
 
 class LandmarkHead(nn.Module):
     def __init__(self,inchannels=512,num_anchors=3):
@@ -105,7 +114,7 @@ class RetinaFace(nn.Module):
         self.ssh2 = SSH(out_channels, out_channels) # self.ssh2 = Relu(3x3와 5x5와 7x7의  receptive field를 모두 concat한 값)
         self.ssh3 = SSH(out_channels, out_channels) # self.ssh3 = Relu(3x3와 5x5와 7x7의  receptive field를 모두 concat한 값)
 
-        self.ClassHead = self._make_class_head(fpn_num=3, inchannels=cfg['out_channel'])
+        self.ClassHead = self._make_class_head(fpn_num=3, inchannels=cfg['out_channel']) # cfg['out_channel'] = 64
         self.BboxHead = self._make_bbox_head(fpn_num=3, inchannels=cfg['out_channel'])
         self.LandmarkHead = self._make_landmark_head(fpn_num=3, inchannels=cfg['out_channel'])
 
@@ -145,11 +154,33 @@ class RetinaFace(nn.Module):
 
         bbox_regressions = torch.cat([self.BboxHead[i](feature) for i, feature in enumerate(features)], dim=1)
         # bbox_regressions.shape = torch.Size([32, 16800, 4]) 
+        """ self.BboxHead
+                ModuleList(
+                (0): BboxHead(
+                    (conv1x1): Conv2d(64, 8, kernel_size=(1, 1), stride=(1, 1))
+                )
+                (1): BboxHead(
+                    (conv1x1): Conv2d(64, 8, kernel_size=(1, 1), stride=(1, 1))
+                )
+                (2): BboxHead(
+                    (conv1x1): Conv2d(64, 8, kernel_size=(1, 1), stride=(1, 1))
+                )
+                )
+                
+            bbox_regressions = 
+        tensor([[[ 0.3420,  0.3365, -0.6604,  0.8740],
+         [ 0.1200, -0.2827,  0.0637, -0.3930],
+         [ 0.2420,  0.5227, -0.2818,  0.7875], -> anchor box의 x,y의 중심점 좌표 변화량, w변화량, h변화량 예측"""
         # 16800개의 앵커박스에 대한 Bbox좌표 예측
+        # torch.Size([32, 16800, 4]) -> 
         classifications = torch.cat([self.ClassHead[i](feature) for i, feature in enumerate(features)],dim=1)
         # classifications.shape = torch.Size([32, 16800, 2])
+        ''' classifications = tensor([[[ 0.4696,  0.0915],  [-0.4135,  0.0586], [-0.1520,  0.3834],..., -> softmax씌우기전에 logit값 '''
+        
         ldm_regressions = torch.cat([self.LandmarkHead[i](feature) for i, feature in enumerate(features)], dim=1)
-
+        # ldm_regressions = tensor([[[-1.7361e-01, -4.7401e-01, -2.2938e-02,  ...,  3.2044e-02, 2.4883e-01, -3.6583e-02], [-8.5719e-01, -3.2078e-03,  3.2932e-01,  ...,  3.3598e-01, 2.5158e-01, -3.8122e-01],..., [ 1.2743e-01, -1.1159e-01,  1.1472e-01,  ...,  6.5346e-02, 4.4305e-02,  1.5088e-01]]], device='cuda:0', grad_fn=<CatBackward0>)"
+        # 위의 값또한 앵커박스를 기준으로 변화하는 값
+       
         if self.phase == 'train':
             output = (bbox_regressions, classifications, ldm_regressions)
         else:
