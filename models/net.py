@@ -39,7 +39,7 @@ def conv_dw(inp, oup, stride, leaky=0.1):
 
 class SSH(nn.Module): # Single stage Headless face detector 
     """Fully connected network없이 오롯이 convolution layer만 사용
-    # FCN 없이도 CNN만으로도 예측이 가능하다는것이 핵심
+    # Fully connected network 없이도 CNN만으로도 예측이 가능하다는것이 핵심
     # structure 특징 : 
     # 1. FCN을 제거하여 가벼운 Network
     # 2. Scale불변성 :외부 Mulitiscale pyramid 없이도 다양한 Scale의 얼굴을 검출

@@ -79,6 +79,14 @@ class MultiBoxLoss(nn.Module):
         # loc_data = [32, 16800, 4], conf_data = [32, 16800, 2], landm_data = [32, 16800, 10] 
         # 여기서 32는 배치사이즈를 의미함, 배치사이즈에 따라 달라짐
         priors = priors # priors = [16800, 4]  == anchor box, input resolution에 따라서 변화함
+        """priors = 정해져있음 = 
+tensor([[0.0063, 0.0063, 0.0250, 0.0250],
+        [0.0063, 0.0063, 0.0500, 0.0500],
+        [0.0188, 0.0063, 0.0250, 0.0250],
+        ...,
+        [0.9250, 0.9750, 0.8000, 0.8000],
+        [0.9750, 0.9750, 0.4000, 0.4000],
+        [0.9750, 0.9750, 0.8000, 0.8000]], device='cuda:0')"""
         num = loc_data.size(0)  # num = 32
         num_priors = (priors.size(0)) # num_priors = 16800
 

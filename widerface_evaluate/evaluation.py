@@ -253,30 +253,54 @@ def img_pr_info(thresh_num, pred_info, proposal_list, pred_recall):
 
 def dataset_pr_info(thresh_num, pr_curve, count_face):
     _pr_curve = np.zeros((thresh_num, 2))
-    for i in range(thresh_num):
-        _pr_curve[i, 0] = pr_curve[i, 1] / pr_curve[i, 0]
+    # _pr_curve.shape = (thresh_num, 2) #[thresh_num = 1000, precision, recall]
+    for i in range(thresh_num): # 각 Confidence Score Threshold마다 Precision-Recall 계산
+        _pr_curve[i, 0] = pr_curve[i, 1] / pr_curve[i, 0] 
+        # pr_curve[i, 1] = 해당 threshold에서 TP(True Positive) 개수
+        # pr_curve[i, 0] = 해당 threshold에서 TP + FP(True Positive + False Positive) 개수
+        # _pr_curve[i, 0] = precision 을 뜻함 = TP/TP + FP
         _pr_curve[i, 1] = pr_curve[i, 1] / count_face
+        # pr_curve[i, 1] = 해당 threshold에서 TP(True Positive) 개수
+        # count_face = 실제 객체를 올바르게 탐지한 개수 + 실제 객체를 탐지하지 못한 개수 (즉, 놓친 개수) = TP + FN: 전체 Ground Truth 개수 (GT 박스 수)
+        # _pr_curve[i, 1] = recall 을 뜻함 = TP / TP + FN
     return _pr_curve
 
 
-def voc_ap(rec, prec):
+def voc_ap(rec, prec): # rec와 prec를 입력받아 단일값 average precision을 반환하는 함수 
+    # rec (Recall 배열): PR Curve에서 X축(재현율, Recall) 값
+    # prec (Precision 배열) =  PR Curve에서 Y축(정밀도, Precision) 값
 
     # correct AP calculation
     # first append sentinel values at the end
-    mrec = np.concatenate(([0.], rec, [1.]))
+    # Recall과 Precision 배열의 시작과 끝에 추가적인 값(센티넬 값)을 붙임임
+    # 센티넬 값: 시작점(0.0)과 끝점(1.0)을 추가하여 계산 안정성을 높임
+    # 특히 PR Curve의 끝까지 면적을 적절히 포함하도록 보장
+    mrec = np.concatenate(([0.], rec, [1.])) 
+    # mrec = [0.0, rec_1, rec_2, ..., rec_N, 1.0] # 센티넬 값을 앞뒤로 붙임임
     mpre = np.concatenate(([0.], prec, [0.]))
+    # mpre = [0.0, prec_1, prec_2, ..., prec_N, 0.0] # 센티넬 값을 앞뒤로 붙임임
 
     # compute the precision envelope
     for i in range(mpre.size - 1, 0, -1):
         mpre[i - 1] = np.maximum(mpre[i - 1], mpre[i])
+    # Precision 값을 조정하여 단조 감소(Non-Increasing)하도록 변경
+    # 실제 PR Curve에서 Precision 값이 항상 감소해야 함(precision과 recall관계가 trade-off임)
+    # 하지만 실측 데이터는 그렇지 않을 수 있으므로 Precision Envelope을 생성하여 조정
+    # precision이 증가하는것처럼 보이지 않도록 수정하는 과정을 거치게됨 
 
     # to calculate area under PR curve, look for points
     # where X axis (recall) changes value
     i = np.where(mrec[1:] != mrec[:-1])[0]
+    # Recall 값이 변하는 지점의 인덱스를 찾음
+    # PR Curve 아래 면적(AUC)을 구하기 위해, Recall이 변화하는 지점에서 면적을 구해야 함
+    # mrec[1:]과 mrec[:-1]를 비교하여 Recall 값이 달라지는 위치를 찾음
 
     # and sum (\Delta recall) * prec
     ap = np.sum((mrec[i + 1] - mrec[i]) * mpre[i + 1])
-    return ap
+    # mrec[i + 1] - mrec[i] = Recall 변화량
+    # mpre[i + 1]: 해당 Recall 구간에서의 Precision 값
+    # AP는 PR Curve 아래 면적(AUC, Area Under Curve)을 구하는 것과 동일
+    return ap # 최종 계산된 AP(Average Precision) 값을 반환
 
 
 def evaluation(pred, gt_path, iou_thresh=0.5):
@@ -356,9 +380,10 @@ def evaluation(pred, gt_path, iou_thresh=0.5):
                 # 두 번째 열: Recall 값
                 pr_curve += _img_pr_info
         pr_curve = dataset_pr_info(thresh_num, pr_curve, count_face)
+        # pr_curve = precision, recall 값, [0, 1]범위의 값으로 출력되어 pr curve를 그릴 수 있도록 변환됨됨 
 
-        propose = pr_curve[:, 0]
-        recall = pr_curve[:, 1]
+        propose = pr_curve[:, 0] # precision 값
+        recall = pr_curve[:, 1] # recall 값값
 
         ap = voc_ap(recall, propose)
         aps.append(ap)
