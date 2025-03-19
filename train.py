@@ -5,7 +5,7 @@ import torch.optim as optim
 import torch.backends.cudnn as cudnn
 import argparse
 import torch.utils.data as data
-from data import WiderFaceDetection, detection_collate, preproc, cfg_mnet, cfg_re50
+from data import WiderFaceDetection, detection_collate, preproc, cfg_mnet, cfg_re50, CosineAnnealingWarmUpRestarts
 from layers.modules import MultiBoxLoss
 from layers.functions.prior_box import PriorBox
 import time
@@ -15,7 +15,6 @@ from models.retinaface import RetinaFace
 import wandb
 import random
 from dotenv import load_dotenv
-from torch.optim.lr_scheduler import _LRScheduler
 # dotenv
 load_dotenv() 
 
@@ -113,6 +112,8 @@ cudnn.benchmark = True # 입력크기가 일정할 때, 속도 최적화
 ### Change the optimizer
 # optimizer = optim.SGD(net.parameters(), lr=initial_lr, momentum=momentum, weight_decay=weight_decay)
 optimizer = optim.AdamW(net.parameters(), lr=initial_lr, weight_decay=weight_decay)
+sheduler = CosineAnnealingWarmUpRestarts(optimizer, T_0 = 10, T_mult=1, eta_max=0.1, T_up=0, gamma=1., last_epoch=-1)
+
 criterion = MultiBoxLoss(num_classes, 0.35, True, 0, True, 7, 0.35, False)
 # num_classes, overlap_thresh, prior_for_matching, bkg_label, neg_mining, neg_pos, neg_overlap, encode_target)
 # self.num_classes = num_classes
